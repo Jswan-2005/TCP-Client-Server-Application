@@ -9,6 +9,9 @@
 #include <iphlpapi.h>
 #include <cstdio>
 #include <thread>
+#include <chrono>
+#include <mutex>
+
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -17,21 +20,37 @@ struct Message{
     char user[50]{};
 };
 
-int handleClient(SOCKET clientSocket, char username[]){
-    Message msg;
-    strncpy(msg.user, username, sizeof(msg.user));
-    msg.user[sizeof(msg.user) - 1] = '\0';
-    std::cout << username << std::endl;
-    std::cout << "Enter your message ";
-    std::cin.getline(msg.buffer, 200);
-    int byteCount = send(clientSocket, (char*)&msg, sizeof(msg),0);
-    if (byteCount == SOCKET_ERROR) {
-       return -1;
+void receiveMessages(SOCKET clientSocket) {
+    while (true) {
+        Message receivedMsg;
+        int rec = recv(clientSocket,(char*)&receivedMsg,sizeof(receivedMsg),0);
+        if (rec == SOCKET_ERROR) {
+            closesocket(clientSocket);
+            WSACleanup();
+        }
+        else {
+            std::cout << std::endl;
+            std::cout << receivedMsg.user << "| " << receivedMsg.buffer << std::endl;
+        };
     }
-    return 0;
+}
+
+void handleClient(SOCKET clientSocket, char username[]){
+    std::cout << "Enter your message ";
+    while (true) {
+        Message msg;
+        strncpy(msg.user, username, sizeof(msg.user));
+        msg.user[sizeof(msg.user) - 1] = '\0';
+        std::cin.getline(msg.buffer, sizeof(msg.buffer));
+        int byteCount = send(clientSocket, (char*)&msg, sizeof(msg),0);
+        if (byteCount == SOCKET_ERROR) {
+            closesocket(clientSocket);
+            WSACleanup();
+        }
+    }
 };
 
-int main() {
+    int main() {
     WSADATA wsaData;
     int wsaerr;
     WORD wVersionRequested = MAKEWORD(2,2);
@@ -57,18 +76,15 @@ int main() {
     if (connect(clientSocket, (SOCKADDR*)&clientService,sizeof(clientService))==SOCKET_ERROR) {
         std::cout << "connect failed" << std::endl;
         WSACleanup();
+        return 0;
     }
-;
+    ;
     char username[200];
     std::cout << "What is your username" << std::endl;
     std::cin >> username;
-    while (true) {
-        int check = handleClient(clientSocket,username);
-        if (check == -1) {
-            break;
-        }
-    }
-    WSACleanup();
-    closesocket(clientSocket);
+    std::thread t1(handleClient,clientSocket,username);
+    t1.detach();
+    std::thread t2(receiveMessages, clientSocket);
+    t2.join();
 }
 
