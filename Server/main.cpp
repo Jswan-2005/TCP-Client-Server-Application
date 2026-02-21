@@ -21,16 +21,20 @@ struct Message{
     char user[50]{};
 };
 
-void printReceivedMessage(SOCKET acceptSocket, std::vector<SOCKET> currentConnections) {
+void printReceivedMessage(SOCKET acceptSocket, std::vector<SOCKET> &currentConnections) {
     while (true) {
-        Message recievedMsg;
-        int rec = recv(acceptSocket, (char*)&recievedMsg,sizeof(recievedMsg),0);
+        Message receivedMsg;
+        int rec = recv(acceptSocket, (char*)&receivedMsg,sizeof(receivedMsg),0);
         if (rec == SOCKET_ERROR) {
             std::lock_guard lck(vecMtx);
             std::erase(currentConnections,acceptSocket);
             return;
         }
-        std::cout << recievedMsg.user << "| " << recievedMsg.buffer << std::endl;
+        std::cout << receivedMsg.user << "| " << receivedMsg.buffer << std::endl;
+        for (auto socket : currentConnections) {
+            if (socket != acceptSocket)
+            send(socket,(char*)&receivedMsg,sizeof(receivedMsg),0);
+        }
     }
 };
 
@@ -90,6 +94,8 @@ int main() {
         recvThread.detach();
     }
 }
+
+
 
 
 
